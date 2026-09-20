@@ -1,51 +1,56 @@
+# HIP Programming & Porting CUDA
 
-# HIP Programming & Porting 🚀
+Notes from the AMD ROCm certification (Level 1). I wrote a HIP kernel, ported a CUDA program with hipify, and wrote a parallel reduction. Key take away: code can compile fine on AMD and still be wrong if it assumes a warp size of 32.
 
-This folder documents my practical work for the AMD ROCm certification. In this module, I ported from CUDA to AMD’s Heterogeneous-compute Interface for Portability (HIP) environment, working through manual kernel writing, automated code migration, and parallel reduction tuning[cite: 13].
+## Files
 
----
+- `vec_add_hip.cpp` - vector add, written from scratch
+- `histogram_cuda.cu` - the CUDA histogram I had to port
+- `histogram_hip.cpp` - what hipify-perl gave me
+- `reduction.cpp` - multi-pass sum reduction
 
-## What I Built & Learned
+## What I did
 
-### 1. Vector Addition from Scratch (`vec_add_hip.cpp`)
-* Implemented a basic custom HIP vector-addition kernel (`__global__`) to master the core GPU execution flow: device allocation, host-to-device memory copies, kernel execution, and device synchronization[cite: 13].
-* Applied ceiling division grid configuration `(N + 255) / 256` to cleanly map threads across data blocks[cite: 13].
-* Created reusable error-checking macros (`HIP_CHECK`) to intercept bad launch configurations and runtime exceptions immediately[cite: 13].
+### Vector addition
+Wrote the whole HIP flow: allocate on the GPU, copy data over, launch, copy back, check, free.
 
-### 2. Automated Code Migration (`histogram_cuda.cu` $\rightarrow$ `histogram_hip.cpp`)
-* Used ROCm’s automated translation utility to convert legacy CUDA code into valid HIP source files[cite: 13]:
-  ```bash
-  hipify-perl histogram_cuda.cu -o histogram_hip.cpp
+- Grid size is `(N + 255) / 256`. The `if (i < N)` check is there because the last block has extra threads that would write out of bounds.
+- Made a `HIP_CHECK` macro because GPU errors are easy to miss otherwise.
+- After a launch you need both `hipGetLastError()` (bad launch config) and `hipDeviceSynchronize()` (errors during the kernel).
+- Got 0 errors on 1,048,576 elements.
 
+### Porting the histogram
+```bash
+hipify-perl histogram_cuda.cu -o histogram_hip.cpp
+hipcc -o histogram_hip histogram_hip.cpp && ./histogram_hip
 ```
 
-* Mapped out core API adjustments required during porting:
+What hipify changed:
 
+| CUDA | HIP |
+|------|-----|
+| `cuda_runtime.h` | `hip/hip_runtime.h` |
+| `cudaMalloc` / `cudaFree` | `hipMalloc` / `hipFree` |
+| `cudaMemcpy` | `hipMemcpy` |
+| `cudaMemset` | `hipMemset` |
+| `cudaMemcpyHostToDevice` | `hipMemcpyHostToDevice` |
 
-* **Headers:** `#include <cuda_runtime.h>` $\rightarrow$ `#include <hip/hip_runtime.h>`
+The kernel code didn't change at all (`__shared__`, `atomicAdd`, `__syncthreads`, the `<<<>>>` launch). It was mostly renaming host API calls. Output was correct: `bins[v] == v` for every bin.
 
-* **Runtime Calls:** `cudaMalloc`, `cudaMemcpy`, `cudaFree` $\rightarrow$ `hipMalloc`, `hipMemcpy`, `hipFree`
+### Reduction
+Each thread loads one value into shared memory, then half the threads add into the other half, over and over, until one sum is left per block. One block only gives one partial sum, so I ran it in passes until one value remained. GPU and CPU both got 1,048,576.
 
----
+## Warp vs wavefront
 
+NVIDIA warps are always 32 threads. AMD wavefronts depend on the GPU: 64 on CDNA (like the MI300X), 32 on some others. So hardcoding 32 is risky, and `warpSize` (or `blockDim.x`) is the safer choice.
 
-### 3. Parallel Reductions & Hardware Awareness (`reduction.cpp`)
+My kernels use `blockDim.x` and `gridDim.x` for their loops, so they don't care about warp size. I haven't written a warp-level version with `__shfl_down` yet, which is where `warpSize` would actually matter.
 
-* Built a multi-pass block reduction utilizing shared memory (`__shared__`) and tree-based parallel accumulations.
-
-
-* **Architecture Insight (Warps vs. Wavefronts):** Analyzed execution group differences between NVIDIA architectures (fixed **32-thread warps**) and AMD architectures (flexible **wavefronts**, often 64 threads on CDNA hardware like the MI300X). Avoided hardcoding execution group bounds to guarantee cross-platform portability.
-
-
-
----
-
-## Compilation & Execution
-
-To compile and execute the vector addition program using the AMD `hipcc` compiler:
+## Build
 
 ```bash
-hipcc vec_add_hip.cpp -o vec_add_hip
-./vec_add_hip
-
+hipcc -o vec_add_hip vec_add_hip.cpp && ./vec_add_hip
+hipify-perl histogram_cuda.cu -o histogram_hip.cpp
+hipcc -o histogram_hip histogram_hip.cpp && ./histogram_hip
+hipcc -o reduction reduction.cpp && ./reduction
 ```
