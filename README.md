@@ -38,5 +38,8 @@ This repository focuses on moving beyond high-level abstractions to understand h
 | **MIOpen Cached Run** | ~3.0 ms | Optimized execution speed using the cached kernel |
 | **rocFFT Error Check** | 9.54e-07 | Numerical precision validation on transform round-trips |
 
+---
+#Images
+![Reference images ](e2083ce0-0e8e-4d70-84e3-c4b17f807b02.png)
 ## Key Takeaways
 Working through these implementations provided understanding on hardware-software cooperation, memory layout optimization, and the performance impact of kernel fusion in modern deep learning pipelines
