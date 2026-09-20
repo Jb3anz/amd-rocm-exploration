@@ -4,14 +4,14 @@ A technical log and sandbox documenting my exploration of high-performance compu
 
 This repository focuses on moving beyond high-level abstractions to understand how compute-heavy math routines and deep learning models execute at the hardware level on enterprise accelerators.
 
-## 🛠️ Environment Setup
+## Environment Setup
 * **Hardware:** AMD Instinct MI300X VF GPU
 * **Software:** ROCm 7.2.4, HIP 7.2.53211
 * **Framework:** PyTorch (with ROCm support)
 
 ---
 
-## 🚀 Key Explorations & Benchmarks
+## Key Explorations & Benchmarks
 
 ### 1. Matrix Multiplications & GFLOPS (`rocBLAS`)
 * Benchmarked single-precision matrix-matrix multiplication (GEMM) to evaluate raw hardware throughput.
@@ -29,7 +29,7 @@ This repository focuses on moving beyond high-level abstractions to understand h
 
 ---
 
-## 📊 Performance Summary
+## Performance Summary
 
 | Benchmark / Task | Recorded Metric | Significance |
 | :--- | :--- | :--- |
@@ -38,5 +38,5 @@ This repository focuses on moving beyond high-level abstractions to understand h
 | **MIOpen Cached Run** | ~3.0 ms | Optimized execution speed using the cached kernel |
 | **rocFFT Error Check** | 9.54e-07 | Numerical precision validation on transform round-trips |
 
-## 🎯 Key Takeaways
+## Key Takeaways
 Working through these implementations provided understanding on hardware-software cooperation, memory layout optimization, and the performance impact of kernel fusion in modern deep learning pipelines
